@@ -5,4 +5,4 @@ ETL: CSV → PostgreSQL (DS), журнал LOGS. Запуск: Docker + Airflow,
 config.py + .env — настройки. docker-compose.yml — Postgres и Airflow.
 dags/bank_ds_csv_etl.py — сценарий (5 задач). etl/*_etl.py — шесть таблиц. CSV/*.csv — данные.
 
-Утилиты: ensure_etl_log_table_and_start.py, clear_ds_and_logs.py, trigger_bank_ds_csv_etl.bat
+Утилиты: ensure_etl_log_table_and_start.py, trigger_bank_ds_csv_etl.bat
