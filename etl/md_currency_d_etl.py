@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql.column import Column
 
 from config import EtlConfig
 from etl.csv_extract import extract_csv_raw_strings
@@ -33,6 +34,19 @@ COLUMNS = [
 ]
 
 
+def _normalize_code_iso_char(col: Column) -> Column:
+    """Только три латинские буквы A–Z; иначе первая подстрока вида AAA или null."""
+    u = F.upper(F.trim(col.cast("string")))
+    extracted = F.regexp_extract(u, r"([A-Z]{3})", 1)
+    three_letters = (F.length(u) == 3) & u.rlike("^[A-Z]{3}$")
+    return (
+        F.when(u.isNull() | (F.length(u) == 0), F.lit(None).cast("string"))
+        .when(three_letters, u)
+        .when(F.length(extracted) == 3, extracted)
+        .otherwise(F.lit(None).cast("string"))
+    )
+
+
 def source_csv_path(config: EtlConfig) -> Path:
     return (config.csv_dir / f"{CSV_BASENAME}.csv").resolve()
 
@@ -56,21 +70,32 @@ def transform(df: DataFrame) -> tuple[DataFrame, dict[str, int]]:
         .withColumnRenamed("_p_data_actual_date", "data_actual_date")
         .withColumnRenamed("_p_data_actual_end_date", "data_actual_end_date")
     )
-    trim_cc = F.trim(F.col("CURRENCY_CODE"))
-    trim_iso = F.trim(F.col("CODE_ISO_CHAR"))
+    trim_cc = F.trim(F.col("CURRENCY_CODE").cast("string"))
+    rk_str = F.trim(F.col("CURRENCY_RK").cast("string"))
+    rk_clean = F.regexp_replace(rk_str, r"\D", "")
+    currency_rk = F.when(
+        rk_str.isNull() | (F.length(rk_clean) == 0),
+        F.lit(None).cast("int"),
+    ).otherwise(rk_clean.cast("long").cast("int"))
+    code_iso = _normalize_code_iso_char(F.col("CODE_ISO_CHAR"))
+    cc_sub = F.substring(trim_cc, 1, 3)
+    currency_code = F.when(
+        trim_cc.isNull() | (F.length(trim_cc) == 0),
+        F.lit(None).cast("string"),
+    ).otherwise(cc_sub)
     df = df.select(
         F.col("data_actual_date"),
         F.col("data_actual_end_date"),
-        F.trim(F.col("CURRENCY_RK")).cast("int").alias("currency_rk"),
-        F.substring(trim_cc, 1, 3).alias("currency_code"),
-        F.substring(trim_iso, 1, 3).alias("code_iso_char"),
+        currency_rk.alias("currency_rk"),
+        currency_code.alias("currency_code"),
+        F.substring(code_iso, 1, 3).alias("code_iso_char"),
     )
+    # Как VANEK_load_md_currency_d: отбрасываем только строки без ключа (rk / дата).
     df = df.filter(
         F.col("currency_rk").isNotNull() & F.col("data_actual_date").isNotNull()
     )
     rows_after_filter = df.count()
-    df = df.dropDuplicates()
-    rows_output = df.count()
+    rows_output = rows_after_filter
     return df, {
         "rows_input": rows_input,
         "rows_after_filter": rows_after_filter,
