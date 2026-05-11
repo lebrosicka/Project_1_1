@@ -1,3 +1,5 @@
+Ссылка на гугл диск где лежит видео по проекту: https://drive.google.com/drive/folders/1O-d8TUjcRQ9b8vTNXAWA8oVJnL7pIkc9?usp=drive_link
+
 ETL: CSV → PostgreSQL (DS), журнал LOGS. Запуск: Docker и .bat файл вручную
 
 config.py + .env — настройки. docker-compose.yml — Postgres и Airflow.
