@@ -35,7 +35,6 @@ COLUMNS = [
 
 
 def _normalize_code_iso_char(col: Column) -> Column:
-    """Только три латинские буквы A–Z; иначе первая подстрока вида AAA или null."""
     u = F.upper(F.trim(col.cast("string")))
     extracted = F.regexp_extract(u, r"([A-Z]{3})", 1)
     three_letters = (F.length(u) == 3) & u.rlike("^[A-Z]{3}$")
@@ -90,7 +89,6 @@ def transform(df: DataFrame) -> tuple[DataFrame, dict[str, int]]:
         currency_code.alias("currency_code"),
         F.substring(code_iso, 1, 3).alias("code_iso_char"),
     )
-    # Как VANEK_load_md_currency_d: отбрасываем только строки без ключа (rk / дата).
     df = df.filter(
         F.col("currency_rk").isNotNull() & F.col("data_actual_date").isNotNull()
     )
